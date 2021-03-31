@@ -24,60 +24,128 @@
   ~ THE SOFTWARE.
   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-              xmlns:tools="http://schemas.android.com/tools"
-              android:layout_width="fill_parent"
-              android:layout_height="fill_parent"
-              android:orientation="vertical"
-              android:paddingLeft="@dimen/activity_horizontal_margin"
-              android:paddingRight="@dimen/activity_horizontal_margin"
-              android:paddingTop="@dimen/activity_vertical_margin"
-              android:paddingBottom="@dimen/activity_vertical_margin"
-              tools:context=".AddUserActivity">
+<layout
+  xmlns:android="http://schemas.android.com/apk/res/android"
+  xmlns:app="http://schemas.android.com/apk/res-auto"
+  xmlns:tools="http://schemas.android.com/tools"
+  >
+  
+  <data>
+    <variable
+      name="user"
+      type="de.chaosdorf.meteroid.model.User"
+    />
+    <variable
+      name="DECIMAL_FORMAT"
+      type="java.text.DecimalFormat"
+    />
+    <variable
+      name="writable"
+      type="android.databinding.ObservableBoolean"
+    />
+  </data>
+  
+  <LinearLayout android:layout_width="fill_parent"
+                android:layout_height="fill_parent"
+                android:orientation="vertical"
+                android:paddingLeft="@dimen/activity_horizontal_margin_dialog"
+                android:paddingRight="@dimen/activity_horizontal_margin_dialog"
+                android:paddingTop="@dimen/activity_vertical_margin"
+                android:paddingBottom="@dimen/activity_vertical_margin"
+                tools:context=".UserSettings">
 
-    <EditText
-        android:id="@+id/username"
-        android:hint="@string/user_settings_username"
-        android:layout_height="wrap_content"
-        android:layout_width="fill_parent"
-        android:inputType="text"/>
+      <EditText
+          android:id="@+id/username"
+          android:hint="@string/user_settings_username"
+          android:layout_height="wrap_content"
+          android:layout_width="fill_parent"
+          android:inputType="text"
+          android:text="@={user.name}"
+          android:autofillHints="username"
+          android:enabled="@{writable}"
+          />
 
-    <EditText
-        android:id="@+id/email"
-        android:hint="@string/user_settings_email"
-        android:layout_height="wrap_content"
-        android:layout_width="fill_parent"
-        android:inputType="textEmailAddress"/>
+      <EditText
+          android:id="@+id/email"
+          android:hint="@string/user_settings_email"
+          android:layout_height="wrap_content"
+          android:layout_width="fill_parent"
+          android:inputType="textEmailAddress"
+          android:text="@={user.email}"
+          android:autofillHints="emailAddress"
+          android:enabled="@{writable}"
+          />
 
-    <EditText
-        android:id="@+id/balance"
-        android:hint="@string/user_settings_balance"
-        android:layout_height="wrap_content"
-        android:layout_width="fill_parent"
-        android:inputType="numberDecimal"/>
+      <EditText
+          android:id="@+id/balance"
+          android:hint="@string/user_settings_balance"
+          android:layout_height="wrap_content"
+          android:layout_width="fill_parent"
+          android:inputType="numberDecimal"
+          android:text="@{DECIMAL_FORMAT.format(user.balance)}"
+          android:enabled="@{writable}"
+          />
+          
+      <CheckBox
+          android:id="@+id/active"
+          android:text="@string/user_settings_active"
+          android:layout_height="wrap_content"
+          android:layout_width="fill_parent"
+          android:checked="@={user.active}"
+          android:enabled="@{writable}"
+          />
+          
+      <CheckBox
+          android:id="@+id/audit"
+          android:text="@string/user_settings_audit"
+          android:layout_height="wrap_content"
+          android:layout_width="fill_parent"
+          android:checked="@={user.audit}"
+          android:enabled="@{writable}"
+          />
+          
+      <CheckBox
+          android:id="@+id/redirect"
+          android:text="@string/user_settings_redirect"
+          android:layout_height="wrap_content"
+          android:layout_width="fill_parent"
+          android:checked="@={user.redirect}"
+          android:enabled="@{writable}"
+          />
 
-    <LinearLayout
-        android:layout_height="wrap_content"
-        android:layout_width="wrap_content"
-        android:orientation="horizontal"
-        android:layout_gravity="right"
-        >
+      <LinearLayout
+          android:layout_height="wrap_content"
+          android:layout_width="wrap_content"
+          android:orientation="horizontal"
+          android:layout_gravity="right"
+          >
 
-        <ImageButton
-            android:id="@+id/button_back"
+          <ImageButton
+              android:id="@+id/button_back"
+              android:layout_width="wrap_content"
+              android:layout_height="wrap_content"
+              android:layout_gravity="right"
+              android:src="@drawable/button_back"
+              android:enabled="@{writable}"
+              android:contentDescription="@string/button_back"/>
+          
+          <ImageButton
+            android:id="@+id/button_delete"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="right"
-            android:src="@drawable/button_back"
-            android:contentDescription="@string/button_back"/>
+            android:src="@android:drawable/ic_delete"
+            android:enabled="@{writable}"
+            android:contentDescription="@string/button_delete"/>
 
-        <ImageButton
-            android:id="@+id/button_save"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:src="@android:drawable/ic_menu_save"
-            android:contentDescription="@string/button_save"/>
+          <ImageButton
+              android:id="@+id/button_save"
+              android:layout_width="wrap_content"
+              android:layout_height="wrap_content"
+              android:src="@android:drawable/ic_menu_save"
+              android:enabled="@{writable}"
+              android:contentDescription="@string/button_save"/>
 
-    </LinearLayout>
+      </LinearLayout>
 
-</LinearLayout>
+  </LinearLayout>
+</layout>

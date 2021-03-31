@@ -26,24 +26,55 @@ package de.chaosdorf.meteroid.longrunningio;
 
 import java.io.IOException;
 
-import okhttp3.MediaType;
-import okhttp3.OkHttpClient;
-import okhttp3.RequestBody;
-import okhttp3.Request;
-import okhttp3.Callback;
-import okhttp3.Call;
-import okhttp3.Response;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 
-import de.chaosdorf.meteroid.MeteroidNetworkActivity;
+import android.util.Log;
 
-public class LongRunningIOPatch extends LongRunningIOBase
+public class LongRunningIORequest<T>
 {
-	public static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
-	public LongRunningIOPatch(final MeteroidNetworkActivity callback, final LongRunningIOTask id, final String url, final String patchData)
+	private final static String TAG = "LongRunningIO";
+
+	public LongRunningIORequest(final LongRunningIOCallback<T> callback, final LongRunningIOTask id, final Call<T> call)
 	{
-		super();
-		RequestBody reqbody = RequestBody.create(JSON, patchData);
-		Request req = new Request.Builder().url(url).patch(reqbody).build();
-		client.newCall(req).enqueue(newCallback(callback, id));
+		Log.d(TAG, "Initiating call: " + call.request());
+		call.enqueue(newCallback(callback, id));
+	}
+	
+	protected Callback<T> newCallback(final LongRunningIOCallback<T> callback, final LongRunningIOTask id)
+	{
+		return new Callback<T>()
+		{
+			@Override
+			public void onFailure(final Call<T> call, final Throwable t)
+			{
+				Log.d(TAG, "Handling failure: " + call.request());
+				callback.displayErrorMessage(id, t.getLocalizedMessage());
+			}
+
+			@Override
+			public void onResponse(final Call<T> call, final Response<T> resp)
+			{
+				Log.d(TAG, "Handling response: " + call.request());
+				T responseBody = null;
+				if(resp.isSuccessful())
+				{
+					try
+					{
+						responseBody = resp.body();
+					}
+					catch(final Throwable t)
+					{
+						callback.displayErrorMessage(id, t.getLocalizedMessage());
+					}
+					callback.processIOResult(id, responseBody);
+				}
+				else
+				{
+					callback.displayErrorMessage(id, resp.message());
+				}
+			}
+		};
 	}
 }

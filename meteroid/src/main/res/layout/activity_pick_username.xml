@@ -24,73 +24,73 @@
   ~ THE SOFTWARE.
   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-                xmlns:tools="http://schemas.android.com/tools"
-                android:layout_width="fill_parent"
-                android:layout_height="fill_parent"
-                android:paddingLeft="@dimen/activity_horizontal_margin"
-                android:paddingRight="@dimen/activity_horizontal_margin"
-                android:paddingTop="@dimen/activity_vertical_margin"
-                android:paddingBottom="@dimen/activity_vertical_margin"
-                tools:context=".PickUsername">
+<layout
+  xmlns:android="http://schemas.android.com/apk/res/android"
+  xmlns:fab="http://schemas.android.com/apk/res-auto"
+  xmlns:tools="http://schemas.android.com/tools"
+  >
 
-    <LinearLayout
-        android:id="@+id/pick_username_error"
-        android:layout_height="fill_parent"
-        android:layout_width="fill_parent"
-        android:visibility="gone"
-        android:orientation="vertical">
+  <RelativeLayout android:layout_width="fill_parent"
+                  android:layout_height="fill_parent"
+                  android:paddingLeft="@dimen/activity_horizontal_margin"
+                  android:paddingRight="@dimen/activity_horizontal_margin"
+                  android:paddingTop="@dimen/activity_vertical_margin"
+                  android:paddingBottom="@dimen/activity_vertical_margin"
+                  tools:context=".PickUsername">
 
-        <TextView
-            android:layout_width="fill_parent"
-            android:layout_height="wrap_content"
-            android:textSize="16sp"
-            android:text="@string/pick_username_error"/>
+      <LinearLayout
+          android:id="@+id/pick_username_error"
+          android:layout_height="fill_parent"
+          android:layout_width="fill_parent"
+          android:visibility="gone"
+          android:orientation="vertical">
 
-        <LinearLayout
-            android:layout_height="wrap_content"
-            android:layout_width="wrap_content"
-            android:orientation="horizontal"
-            android:layout_gravity="end">
+          <TextView
+              android:layout_width="fill_parent"
+              android:layout_height="wrap_content"
+              android:textSize="16sp"
+              android:text="@string/pick_username_error"/>
+      </LinearLayout>
 
-            <ImageButton
-                android:id="@+id/button_back"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="right"
-                android:src="@drawable/button_back"
-                android:contentDescription="@string/button_back"/>
+      <ProgressBar
+          android:visibility="visible"
+          android:id="@+id/progress_bar"
+          android:layout_width="76dip"
+          android:layout_height="76dip"
+          android:layout_centerInParent="true"
+          style="@android:style/Widget.ProgressBar.Large"/>
 
-            <ImageButton
-                android:id="@+id/button_reload"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="right"
-                android:src="@drawable/button_reload"
-                android:contentDescription="@string/button_reload"/>
+      <android.support.v4.widget.SwipeRefreshLayout
+          android:id="@+id/swiperefresh"
+          android:layout_alignParentTop="true"
+          android:layout_width="fill_parent"
+          android:layout_height="fill_parent"
+          android:gravity="center"
+          android:enabled="false">
+          
+          <GridView
+            android:visibility="gone"
+            android:id="@+id/grid_view"
+            android:fastScrollEnabled="true"
+            android:columnWidth="100dp"
+            android:numColumns="auto_fit"
+            android:verticalSpacing="12dp"
+            android:horizontalSpacing="5dp"
+            android:stretchMode="columnWidth"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"/>
+            
+      </android.support.v4.widget.SwipeRefreshLayout>
+      
+      <com.shamanland.fab.FloatingActionButton
+          android:visibility="gone"
+          android:id="@+id/fab"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:layout_alignParentBottom="true"
+          android:layout_alignParentRight="true"
+          android:layout_margin="16dip"
+          android:src="@android:drawable/ic_menu_add" />
 
-        </LinearLayout>
-    </LinearLayout>
-
-    <ProgressBar
-        android:visibility="visible"
-        android:id="@+id/progress_bar"
-        android:layout_width="76dip"
-        android:layout_height="76dip"
-        android:layout_centerInParent="true"
-        style="@android:style/Widget.ProgressBar.Large"/>
-
-    <GridView
-        android:visibility="gone"
-        android:id="@+id/grid_view"
-        android:layout_alignParentTop="true"
-        android:layout_width="fill_parent"
-        android:layout_height="fill_parent"
-        android:columnWidth="100dp"
-        android:numColumns="auto_fit"
-        android:verticalSpacing="12dp"
-        android:horizontalSpacing="5dp"
-        android:stretchMode="columnWidth"
-        android:gravity="center"/>
-
-</RelativeLayout>
+  </RelativeLayout>
+</layout>

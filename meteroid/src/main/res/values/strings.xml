@@ -31,10 +31,11 @@
 
     <!-- Set hostname -->
     <string name="set_hostname_label">Hostname</string>
-    <string name="set_hostname_default_hostname">http://mete</string>
+    <string name="set_hostname_default_hostname">https://mete.chaosdorf.space/api/v1</string>
     <string name="set_hostname">Please enter the URL of mete</string>
     <string name="set_hostname_empty">Please enter a hostname</string>
     <string name="set_hostname_invalid">Invalid hostname entered</string>
+    <string name="set_hostname_continue_http">The URL you entered is not secure (HTTP instead of HTTPS). Do you really want to continue?</string>
 
     <!-- Pick username -->
     <string name="pick_username_label">Pick your username</string>
@@ -46,21 +47,33 @@
     <string name="user_settings_username">Username</string>
     <string name="user_settings_email">Email</string>
     <string name="user_settings_balance">Balance</string>
+    <string name="user_settings_active">Active?</string>
+    <string name="user_settings_audit">Log transactions?</string>
+    <string name="user_settings_redirect">Redirect after a transaction?</string>
     <string name="user_settings_empty_username">Please enter a username</string>
     <string name="user_settings_balance_no_double">Please enter a number as a balance</string>
+    <string name="user_settings_cant_delete_non_existing_user">Can\'t delete a not yet existing user.</string>
+    <string name="user_settings_confirm_delete_user">Delete this user?</string>
+    <string name="user_settings_deleted_user">Deleted the user.</string>
 
     <!-- Buy drink -->
-    <string name="buy_drink_label">Buy drink</string>
+    <string name="buy_drink_label">Donate for a drink</string>
     <string name="buy_drink_pending">Please wait for current transaction…</string>
-    <string name="buy_drink_bought_drink">Bought %1$s for %2$s</string>
+    <string name="buy_drink_bought_drink">Donated %2$s for %1$s</string>
     <string name="buy_drink_added_money">Successfully added %1$s</string>
-    <string name="buy_drink_error">Could not load data from mete. Please check network connection or reset hostname/username to proceed.</string>
+    <string name="buy_drink_error">Well, this didn\'t succeed. Please check your inputs and network connection and try again or reset hostname/username to proceed.</string>
     <string name="buy_drink_edit_user">Edit user</string>
+    <string name="buy_drink_invalid_intent">This action is invalid.</string>
+
+    <!-- About -->
+    <string name="about_label">About</string>
 
     <!-- Buttons -->
     <string name="button_back">Back</string>
     <string name="button_reload">Reload</string>
+    <string name="button_delete">Delete</string>
     <string name="button_save">Save</string>
+    <string name="button_barcode">Scan a barcode</string>
 
     <!-- Menues -->
     <string name="menu_edit_hostname">Edit hostname</string>
@@ -71,5 +84,8 @@
     <string name="menu_use_grid_view">Use grid view</string>
     <string name="menu_use_grid_view_enabled">Grid view enabled</string>
     <string name="menu_use_grid_view_disabled">Grid view disabled</string>
+    
+    <!-- Shortcuts -->
+    <string name="shortcut_scan">Barcode</string>
 
 </resources>

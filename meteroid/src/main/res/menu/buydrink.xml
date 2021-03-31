@@ -34,6 +34,11 @@
         android:title="@string/buy_drink_edit_user"
         android:showAsAction="ifRoom"/>
     <item
+        android:id="@+id/action_barcode"
+        android:icon="@drawable/button_barcode"
+        android:title="@string/button_barcode"
+        android:showAsAction="always"/>
+    <item
         android:id="@+id/edit_hostname"
         android:title="@string/menu_edit_hostname"
         android:orderInCategory="100"
@@ -51,10 +56,8 @@
         android:orderInCategory="100"
         android:showAsAction="never"/>
     <item
-        android:id="@+id/multi_user_mode"
-        android:title="@string/menu_multi_user_mode"
-        android:checkable="true"
-        android:checked="false"
+        android:id="@+id/about"
+        android:title="@string/about_label"
         android:orderInCategory="100"
         android:showAsAction="never"/>
 </menu>

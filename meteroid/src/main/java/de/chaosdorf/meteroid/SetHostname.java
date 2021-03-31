@@ -26,54 +26,53 @@ package de.chaosdorf.meteroid;
 
 import android.app.Activity;
 import android.app.ActionBar;
-import android.content.SharedPreferences;
+import android.app.AlertDialog;
+import android.content.DialogInterface;
+import android.databinding.DataBindingUtil;
 import android.os.Bundle;
 import android.os.Build;
-import android.preference.PreferenceManager;
 import android.text.Editable;
 import android.text.Selection;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.webkit.URLUtil;
-import android.widget.Button;
-import android.widget.EditText;
 
+import de.chaosdorf.meteroid.databinding.ActivitySetHostnameBinding;
+import de.chaosdorf.meteroid.util.Config;
+import de.chaosdorf.meteroid.util.Connection;
 import de.chaosdorf.meteroid.util.Utility;
 
 public class SetHostname extends Activity
 {
 	private Activity activity = null;
-	private SharedPreferences prefs;
-	private EditText editText;
-	private Button saveButton;
+	private Config config;
+	private Connection connection;
+	private ActivitySetHostnameBinding binding;
 
 	@Override
 	protected void onCreate(final Bundle savedInstanceState)
 	{
 		super.onCreate(savedInstanceState);
 		activity = this;
-		setContentView(R.layout.activity_set_hostname);
+		binding = DataBindingUtil.setContentView(this, R.layout.activity_set_hostname);
 
-		prefs = PreferenceManager.getDefaultSharedPreferences(this);
-		final String hostname = prefs.getString("hostname", null);
+		config = Config.getInstance(getApplicationContext());
 
-		editText = (EditText) findViewById(R.id.hostname);
-		if (editText != null)
+		if (binding.hostname != null)
 		{
-			if (hostname != null)
+			if (config.hostname != null)
 			{
-				editText.setText(hostname);
+				binding.hostname.setText(config.hostname);
 			}
-			final Editable editTextHostname = editText.getText();
+			final Editable editTextHostname = binding.hostname.getText();
 			if (editTextHostname != null)
 			{
 				Selection.setSelection(editTextHostname, editTextHostname.length());
 			}
 		}
 
-		saveButton = (Button) findViewById(R.id.button_save);
-		saveButton.setOnClickListener(new View.OnClickListener()
+		binding.buttonSave.setOnClickListener(new View.OnClickListener()
 		{
 			public void onClick(View view)
 			{
@@ -81,13 +80,10 @@ public class SetHostname extends Activity
 			}
 		});
 
-		if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB)
+		ActionBar actionBar = getActionBar();
+		if(actionBar != null)
 		{
-			ActionBar actionBar = getActionBar();
-			if(actionBar != null)
-			{
-				saveButton.setVisibility(View.GONE);
-			}
+			binding.buttonSave.setVisibility(View.GONE);
 		}
 	}
 
@@ -107,24 +103,28 @@ public class SetHostname extends Activity
 	public boolean onCreateOptionsMenu(final Menu menu)
 	{
 		getMenuInflater().inflate(R.menu.settings, menu);
+		
+		// the delete item doesn't make sense here
+		final MenuItem deleteItem = menu.findItem(R.id.action_delete);
+		if(deleteItem != null)
+		{
+			deleteItem.setVisible(false);
+			deleteItem.setEnabled(false);
+		}
+		
 		return true;
 	}
 
 	public void saveHostname()
 	{
-		if (editText == null)
-		{
-			Utility.displayToastMessage(activity, getResources().getString(R.string.set_hostname_empty));
-			return;
-		}
-		final Editable editTextHostname = editText.getText();
+		final Editable editTextHostname = binding.hostname.getText();
 		if (editTextHostname == null)
 		{
 			Utility.displayToastMessage(activity, getResources().getString(R.string.set_hostname_empty));
 			return;
 		}
 		String newHostname = editTextHostname.toString();
-		if (newHostname.equals("http://"))
+		if (newHostname.equals("http://") || newHostname.equals("https://"))
 		{
 			Utility.displayToastMessage(activity, getResources().getString(R.string.set_hostname_empty));
 			return;
@@ -138,7 +138,32 @@ public class SetHostname extends Activity
 			Utility.displayToastMessage(activity, getResources().getString(R.string.set_hostname_invalid));
 			return;
 		}
-		prefs.edit().putString("hostname", newHostname).apply();
+		// TODO: Do this properly.
+		final String url = newHostname;
+		if(URLUtil.isHttpUrl(url)) {
+			new AlertDialog.Builder(this)
+				.setMessage(R.string.set_hostname_continue_http)
+				.setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener()
+				{
+					@Override
+					public void onClick(DialogInterface dialog, int id)
+					{
+						saveAndExit(url);
+					}
+				})
+				.setNegativeButton(android.R.string.cancel, null) // Do nothing on click.
+				.create().show();
+		} else {
+			saveAndExit(url);
+		}
+	}
+	
+	private void saveAndExit(String newHostname) {
+		config.hostname = newHostname;
+		config.apiVersion = Utility.guessApiVersion(newHostname);
+		config.save();
+		connection = Connection.getInstance(config);
+		connection.reset();
 		Utility.startActivity(activity, PickUsername.class);
 	}
 }

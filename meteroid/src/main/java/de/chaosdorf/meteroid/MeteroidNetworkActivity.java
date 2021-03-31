@@ -25,9 +25,29 @@
 package de.chaosdorf.meteroid;
 
 import android.app.Activity;
+import android.os.Bundle;
 
-import de.chaosdorf.meteroid.longrunningio.LongRunningIOCallback;
+import java.text.DecimalFormat;
+
+import de.chaosdorf.meteroid.util.Config;
+import de.chaosdorf.meteroid.util.Connection;
+import de.chaosdorf.meteroid.util.Utility;
 
 
-public abstract class MeteroidNetworkActivity extends Activity implements LongRunningIOCallback
-{}
+public abstract class MeteroidNetworkActivity extends Activity
+{
+	protected DecimalFormat DECIMAL_FORMAT = new DecimalFormat("0.00 '\u20AC'");
+	
+	protected Activity activity;
+	protected Config config;
+	protected Connection connection;
+
+	@Override
+	protected void onCreate(final Bundle savedInstanceState)
+	{
+		super.onCreate(savedInstanceState);
+		activity = this;
+		config = Config.getInstance(getApplicationContext());
+		connection = Connection.getInstance(config);
+	}
+}

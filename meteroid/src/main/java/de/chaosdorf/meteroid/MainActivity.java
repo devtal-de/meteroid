@@ -25,10 +25,9 @@
 package de.chaosdorf.meteroid;
 
 import android.app.Activity;
-import android.content.SharedPreferences;
 import android.os.Bundle;
-import android.preference.PreferenceManager;
 
+import de.chaosdorf.meteroid.util.Config;
 import de.chaosdorf.meteroid.util.Utility;
 
 public class MainActivity extends Activity
@@ -38,16 +37,14 @@ public class MainActivity extends Activity
 	{
 		super.onCreate(savedInstanceState);
 
-		final SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
-		final String hostname = prefs.getString("hostname", null);
-		final int userID = prefs.getInt("userid", 0);
+		final Config config = Config.getInstance(getApplicationContext());
 
-		if (hostname == null)
+		if (config.hostname == null)
 		{
 			// Set hostname if not done yet
 			Utility.startActivity(this, SetHostname.class);
 		}
-		else if (userID == 0)
+		else if (config.multiUserMode || config.userID == config.NO_USER_ID)
 		{
 			// Pick username if not done yet
 			Utility.startActivity(this, PickUsername.class);
@@ -57,5 +54,6 @@ public class MainActivity extends Activity
 			// Ready to buy some drinks
 			Utility.startActivity(this, BuyDrink.class);
 		}
+		finish();
 	}
 }

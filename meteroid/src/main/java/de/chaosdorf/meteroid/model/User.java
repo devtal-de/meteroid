@@ -24,25 +24,25 @@
 
 package de.chaosdorf.meteroid.model;
 
-import java.util.Date;
-
-public class User
+public class User implements MeteroidItem
 {
 	private final int id;
-	private final String name;
-	private final String email;
-	private final double balance;
-	private final Date createdAt;
-	private final Date updatedAt;
+	private String name;
+	private String email;
+	private double balance;
+	private boolean active;
+	private boolean audit;
+	private boolean redirect;
 
-	public User(final int id, final String name, final String email, final double balance, final Date createdAt, final Date updated_at)
+	public User(final int id, final String name, final String email, final double balance, final boolean active, final boolean audit, final boolean redirect)
 	{
 		this.id = id;
 		this.name = name;
 		this.email = email;
 		this.balance = balance;
-		this.createdAt = createdAt;
-		this.updatedAt = updated_at;
+		this.active = active;
+		this.audit = audit;
+		this.redirect = redirect;
 	}
 
 	public int getId()
@@ -54,24 +54,59 @@ public class User
 	{
 		return name;
 	}
+	
+	public void setName(String name)
+	{
+		this.name = name;
+	}
 
 	public String getEmail()
 	{
 		return email;
+	}
+	
+	public void setEmail(String email)
+	{
+		this.email = email;
 	}
 
 	public double getBalance()
 	{
 		return balance;
 	}
-
-	public Date getCreatedAt()
+	
+	public void setBalance(double balance)
 	{
-		return createdAt;
+		this.balance = balance;
 	}
-
-	public Date getUpdatedAt()
+	
+	public boolean getActive()
 	{
-		return updatedAt;
+		return active;
+	}
+	
+	public void setActive(boolean active)
+	{
+		this.active = active;
+	}
+	
+	public boolean getAudit()
+	{
+		return audit;
+	}
+	
+	public void setAudit(boolean audit)
+	{
+		this.audit = audit;
+	}
+	
+	public boolean getRedirect()
+	{
+		return redirect;
+	}
+	
+	public void setRedirect(boolean redirect)
+	{
+		this.redirect = redirect;
 	}
 }

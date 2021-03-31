@@ -24,13 +24,17 @@
 
 package de.chaosdorf.meteroid;
 
+import android.annotation.TargetApi;
 import android.app.ActionBar;
-import android.app.Activity;
 import android.content.Context;
-import android.content.SharedPreferences;
+import android.content.Intent;
+import android.content.pm.ShortcutInfo;
+import android.content.pm.ShortcutManager;
+import android.databinding.DataBindingUtil;
+import android.graphics.Color;
+import android.graphics.drawable.Icon;
 import android.os.Bundle;
 import android.os.Build;
-import android.preference.PreferenceManager;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -39,27 +43,29 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
-import android.widget.GridView;
-import android.widget.ImageButton;
 import android.widget.ImageView;
-import android.widget.ListView;
-import android.widget.ProgressBar;
 import android.widget.TextView;
+
+import com.shamanland.fab.FloatingActionButton;
+import com.shamanland.fab.ShowHideOnScroll;
 
 import org.jetbrains.annotations.NotNull;
 
-import java.text.DecimalFormat;
+import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import com.google.zxing.integration.android.IntentIntegrator;
+import com.google.zxing.integration.android.IntentResult;
 
-import de.chaosdorf.meteroid.controller.DrinkController;
+import de.chaosdorf.meteroid.controller.MeteroidAdapter;
 import de.chaosdorf.meteroid.controller.MoneyController;
-import de.chaosdorf.meteroid.controller.UserController;
-import de.chaosdorf.meteroid.longrunningio.LongRunningIOGet;
+import de.chaosdorf.meteroid.databinding.ActivityBuyDrinkBinding;
+import de.chaosdorf.meteroid.longrunningio.LongRunningIOCallback;
+import de.chaosdorf.meteroid.longrunningio.LongRunningIORequest;
 import de.chaosdorf.meteroid.longrunningio.LongRunningIOTask;
 import de.chaosdorf.meteroid.model.BuyableItem;
 import de.chaosdorf.meteroid.model.User;
@@ -68,90 +74,274 @@ import de.chaosdorf.meteroid.util.MenuUtility;
 import de.chaosdorf.meteroid.util.Utility;
 import de.chaosdorf.meteroid.MeteroidNetworkActivity;
 
-public class BuyDrink extends MeteroidNetworkActivity implements AdapterView.OnItemClickListener
+public class BuyDrink extends MeteroidNetworkActivity implements AdapterView.OnItemClickListener, LongRunningIOCallback
 {
-	private final DecimalFormat DECIMAL_FORMAT = new DecimalFormat("0.00 '\u20AC'");
-
 	private final AtomicBoolean isBuying = new AtomicBoolean(true);
+	private final AtomicBoolean intentHandled = new AtomicBoolean(false);
 	private final AtomicReference<BuyableItem> buyingItem = new AtomicReference<BuyableItem>(null);
 
-	private Activity activity = null;
-	private ProgressBar progressBar = null;
-	private GridView gridView = null;
-	private ListView listView = null;
-	private String hostname = null;
-
-	private int userID = 0;
 	private User user;
-
-	private boolean useGridView;
-	private boolean multiUserMode;
+	private ActivityBuyDrinkBinding binding;
+	private ShortcutManager shortcutManager;
+	private IntentIntegrator barcodeIntegrator;
+	
+	private static final String ACTION_BUY = "de.chaosdorf.meteroid.ACTION_BUY";
+	private static final String ACTION_SCAN = "de.chaosdorf.meteroid.ACTION_SCAN";
+	private static final String EXTRA_BUYABLE_ITEM_IS_DRINK = "de.chaosdorf.meteroid.EXTRA_BUYABLE_ITEM_IS_DRINK";
+	private static final String EXTRA_BUYABLE_ITEM_ID = "de.chaosdorf.meteroid.EXTRA_BUYABLE_ITEM_ID";
+	private static final String EXTRA_BUYABLE_ITEM_PRICE = "de.chaosdorf.meteroid.EXTRA_BUYABLE_ITEM_PRICE";
 
 	@Override
 	protected void onCreate(final Bundle savedInstanceState)
 	{
 		super.onCreate(savedInstanceState);
-		activity = this;
 		requestWindowFeature(Window.FEATURE_INDETERMINATE_PROGRESS);
-		setContentView(R.layout.activity_buy_drink);
+		binding = DataBindingUtil.setContentView(this, R.layout.activity_buy_drink);
+		binding.setUser(user);
+		binding.setDECIMALFORMAT(DECIMAL_FORMAT);
 
-		progressBar = (ProgressBar) findViewById(R.id.progress_bar);
-		gridView = (GridView) findViewById(R.id.grid_view);
-		listView = (ListView) findViewById(R.id.list_view);
+		barcodeIntegrator = new IntentIntegrator(this);
 
-		final SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
-		hostname = prefs.getString("hostname", null);
-		userID = prefs.getInt("userid", 0);
-		useGridView = prefs.getBoolean("use_grid_view", false);
-		multiUserMode = prefs.getBoolean("multi_user_mode", false);
-
-		final ImageButton backButton = (ImageButton) findViewById(R.id.button_back);
-		backButton.setOnClickListener(new View.OnClickListener()
+		ActionBar actionBar = getActionBar();
+		actionBar.setDisplayHomeAsUpEnabled(true);
+		
+		if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
 		{
-			public void onClick(View view)
+			binding.fab.setOnClickListener(new View.OnClickListener()
 			{
-				Utility.resetUsername(activity);
-				Utility.startActivity(activity, PickUsername.class);
-			}
-		});
-
-		final ImageButton reloadButton = (ImageButton) findViewById(R.id.button_reload);
-		reloadButton.setOnClickListener(new View.OnClickListener()
-		{
-			public void onClick(View view)
-			{
-				Utility.startActivity(activity, BuyDrink.class);
-			}
-		});
-
-		final ImageButton editButton = (ImageButton) findViewById(R.id.button_edit);
-		editButton.setOnClickListener(new View.OnClickListener()
-		{
-			public void onClick(View view)
-			{
-				Utility.startActivity(activity, UserSettings.class);
-			}
-		});
-
-		if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB)
-		{
-			ActionBar actionBar = getActionBar();
-			actionBar.setDisplayHomeAsUpEnabled(true);
-			reloadButton.setVisibility(View.GONE);
-			backButton.setVisibility(View.GONE);
-			editButton.setVisibility(View.GONE);
+				public void onClick(View view)
+				{
+					scanBarcode();
+				}
+			});
+			binding.fab.setVisibility(View.VISIBLE);
 		}
-
-		new LongRunningIOGet(this, LongRunningIOTask.GET_USER, hostname + "users/" + userID + ".json");
-		new LongRunningIOGet(this, LongRunningIOTask.GET_DRINKS, hostname + "drinks.json");
+		
+		if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1)
+		{
+			if(!config.multiUserMode)
+			{
+				shortcutManager = getSystemService(ShortcutManager.class);
+				// make sure all pinned shortcuts are enabled as we have a current user
+				List<ShortcutInfo> shortcuts = shortcutManager.getPinnedShortcuts();
+				// if this were Java 8 I could use a stream :(
+				List<String> shortcutIDs = new ArrayList<>();
+				for(ShortcutInfo shortcut : shortcuts) {
+					shortcutIDs.add(shortcut.getId());
+				}
+				shortcutManager.enableShortcuts(shortcutIDs);
+			}
+		}
+		
+		reload();
+	}
+	
+	private void handleIntent(List<BuyableItem> buyableItemList)
+	{
+		if (intentHandled.compareAndSet(false, true))
+		{
+			Intent intent = getIntent();
+			if(intent != null)
+			{
+				String action = intent.getAction();
+				if(action != null)
+				{
+					if(action.equals(ACTION_BUY)) // shortcut
+					{
+						handleBuyIntent(buyableItemList, intent);
+					}
+					else if(action.equals(ACTION_SCAN))
+					{
+						scanBarcode();
+					}
+				}
+			}
+		}
+	}
+	
+	private void handleBuyIntent(List<BuyableItem> buyableItemList, Intent intent)
+	{
+		BuyableItem itemSelected = null;
+		if(intent.getBooleanExtra(EXTRA_BUYABLE_ITEM_IS_DRINK, false))
+		{
+			int id = intent.getIntExtra(EXTRA_BUYABLE_ITEM_ID, -1);
+			if(id == -1)
+			{
+				Utility.displayToastMessage(this, getResources().getString(R.string.buy_drink_invalid_intent));
+				return;
+			}
+			for(BuyableItem item: buyableItemList)
+			{
+				if(item.isDrink())
+				{
+					if(((Drink)item).getId() == id) {
+						itemSelected = item;
+						break;
+					}
+				}
+			}
+		}
+		else
+		{
+			double price = intent.getDoubleExtra(EXTRA_BUYABLE_ITEM_PRICE, 0.0);
+			if(price == 0.0)
+			{
+				Utility.displayToastMessage(this, getResources().getString(R.string.buy_drink_invalid_intent));
+				return;
+			}
+			for(BuyableItem item: buyableItemList)
+			{
+				if(!item.isDrink())
+				{
+					if(item.getPrice() == price)
+					{
+						itemSelected = item;
+						break;
+					}
+				}
+			}
+		}
+		if(itemSelected == null)
+		{
+			Utility.displayToastMessage(this, getResources().getString(R.string.buy_drink_invalid_intent));
+			return;
+		}
+		buy(itemSelected);
+	}
+	
+	private void buy(BuyableItem buyableItem)
+	{
+		buyingItem.set(buyableItem);
+		setProgressBarIndeterminateVisibility(true);
+		if(buyableItem.isDrink())
+		{
+			new LongRunningIORequest<Void>(this, LongRunningIOTask.BUY_DRINK, connection.getAPI().buy(config.userID, ((Drink)buyableItem).getId()));
+		}
+		else
+		{
+			new LongRunningIORequest<Void>(this, LongRunningIOTask.ADD_MONEY, connection.getAPI().deposit(config.userID, -buyableItem.getPrice()));
+		}
+		
+		if(shortcutManager != null)
+		{
+			ShortcutInfo shortcut = shortcutForItem(buyableItem);
+			updateShortcuts(shortcut);
+			shortcutManager.reportShortcutUsed(shortcut.getId());
+		}
+	}
+	
+	private void scanBarcode()
+	{
+		if(shortcutManager != null)
+		{
+			Intent intent = new Intent(this, this.getClass());
+			intent.setAction(ACTION_SCAN);
+			ShortcutInfo shortcut = new ShortcutInfo.Builder(this, "barcode")
+				.setShortLabel(getResources().getString(R.string.shortcut_scan))
+				.setIcon(Icon.createWithResource(this, R.drawable.button_barcode))
+				.setIntent(intent)
+				.build();
+			updateShortcuts(shortcut);
+			shortcutManager.reportShortcutUsed(shortcut.getId());
+		}
+		barcodeIntegrator.initiateScan();
+	}
+	
+	private ShortcutInfo shortcutForItem(BuyableItem item)
+	{
+		String id = null;
+		Intent intent = new Intent(this, this.getClass());
+		intent.setAction(ACTION_BUY);
+		intent.putExtra(EXTRA_BUYABLE_ITEM_IS_DRINK, item.isDrink());
+		if(item.isDrink())
+		{
+			Drink drink = (Drink)item;
+			id = "d" + drink.getId();
+			intent.putExtra(EXTRA_BUYABLE_ITEM_ID, drink.getId());
+		}
+		else
+		{
+			id = "m" + item.getLogoUrl(null);
+			intent.putExtra(EXTRA_BUYABLE_ITEM_PRICE, item.getPrice());
+		}
+		return new ShortcutInfo.Builder(this, id)
+			.setShortLabel(item.getName())
+			.setIcon(Icon.createWithResource(this, R.drawable.default_drink)) // TODO
+			.setIntent(intent)
+			.build();
+	}
+	
+	/**
+	* Updates the dynamic shortcuts.
+	* If a shortcut with this ID does not yet exist, it is added and some other one is removed.
+	* If a shortcut with this ID does already exist, nothing happens.
+	*/
+	@TargetApi(Build.VERSION_CODES.N_MR1)
+	private void updateShortcuts(ShortcutInfo shortcut) {
+		assert shortcutManager != null;
+		List<ShortcutInfo> shortcuts = shortcutManager.getDynamicShortcuts();
+		for(ShortcutInfo current : shortcuts) {
+			if(current.getId().equals(shortcut.getId())) {
+				// nothing to do here
+				return;
+			}
+		}
+		
+		// Do we have enough space to add another one?
+		// getMaxShortcutCountPerActivity gives us the upper bound of how many shortcuts we can set.
+		// But not every launcher can display as much. WTF.
+		// At least the AOSP launcher can display 4. Let's hope that others can do the same.
+		int maxShortcuts = Math.min(shortcutManager.getMaxShortcutCountPerActivity(), 4);
+		if(shortcuts.size() >= maxShortcuts) {
+			// if not, we have to remove one first
+			// pick the last one per default - it's the one we put there the first, I think
+			String idToRemove = shortcuts.get(shortcuts.size() - 1).getId();
+			shortcutManager.removeDynamicShortcuts(Arrays.asList(idToRemove));
+		}
+		// then add our new one
+		shortcutManager.addDynamicShortcuts(Arrays.asList(shortcut));
+	}
+	
+	public void reload()
+	{
+		binding.gridView.setVisibility(View.GONE);
+		binding.listView.setVisibility(View.GONE);
+		binding.buyDrinkError.setVisibility(View.GONE);
+		binding.progressBar.setVisibility(View.VISIBLE);
+		new LongRunningIORequest<User>(this, LongRunningIOTask.GET_USER, connection.getAPI().getUser(config.userID));
+		new LongRunningIORequest<List<Drink>>(this, LongRunningIOTask.GET_DRINKS, connection.getAPI().listDrinks());
+	}
+	
+	private void pickUsername()
+	{
+		config.userID = config.NO_USER_ID;
+		config.save();
+		if(shortcutManager != null) {
+			// if we have no user, we can't buy drinks
+			// removing dynamic shortcuts is easy
+			shortcutManager.removeAllDynamicShortcuts();
+			// but if the user pinned them, that's going to be a bit more difficult
+			List<ShortcutInfo> shortcuts = shortcutManager.getPinnedShortcuts();
+			// if this were Java 8 I could use a stream :(
+			List<String> shortcutIDs = new ArrayList<>();
+			for(ShortcutInfo shortcut : shortcuts) {
+				shortcutIDs.add(shortcut.getId());
+			}
+			shortcutManager.disableShortcuts(shortcutIDs);
+		}
+		if(!config.multiUserMode)
+		{
+			Utility.startActivity(this, PickUsername.class, Intent.FLAG_ACTIVITY_CLEAR_TOP);
+		}
+		finish();
 	}
 
 	@Override
 	public boolean onCreateOptionsMenu(final Menu menu)
 	{
 		getMenuInflater().inflate(R.menu.buydrink, menu);
-		MenuUtility.setChecked(menu, R.id.use_grid_view, useGridView);
-		MenuUtility.setChecked(menu, R.id.multi_user_mode, multiUserMode);
+		MenuUtility.setChecked(menu, R.id.use_grid_view, config.useGridView);
+		MenuUtility.setChecked(menu, R.id.multi_user_mode, config.multiUserMode);
 		return true;
 	}
 
@@ -161,60 +351,46 @@ public class BuyDrink extends MeteroidNetworkActivity implements AdapterView.OnI
 		switch (item.getItemId())
 		{
 			case android.R.id.home:
-				Utility.resetUsername(this);
-				Utility.startActivity(this, PickUsername.class);
+				pickUsername();
 				break;
 			case R.id.action_reload:
-				Utility.startActivity(this, BuyDrink.class);
+				reload();
 				break;
 			case R.id.action_edit:
 				Utility.startActivity(this, UserSettings.class);
+				break;
+			case R.id.action_barcode:
+				scanBarcode();
 				break;
 			case R.id.edit_hostname:
 				Utility.startActivity(this, SetHostname.class);
 				break;
 			case R.id.reset_username:
-				Utility.resetUsername(this);
-				Utility.startActivity(this, PickUsername.class);
+				pickUsername();
 				break;
 			case R.id.use_grid_view:
-				useGridView = Utility.toggleUseGridView(this);
-				item.setChecked(useGridView);
-				Utility.startActivity(this, BuyDrink.class);
+				Utility.toggleUseGridView(this);
+				item.setChecked(config.useGridView);
+				recreate();
 				break;
-			case R.id.multi_user_mode:
-				multiUserMode = MenuUtility.onClickMultiUserMode(this, item);
+			case R.id.about:
+				Utility.startActivity(this, About.class);
 				break;
 		}
 		return super.onOptionsItemSelected(item);
 	}
 
 	@Override
-	public boolean onKeyDown(final int keyCode, @NotNull final KeyEvent event)
-	{
-		if (keyCode == KeyEvent.KEYCODE_BACK)
-		{
-			if (multiUserMode)
-			{
-				Utility.resetUsername(this);
-				Utility.startActivity(this, MainActivity.class);
-				return true;
-			}
-		}
-		return super.onKeyDown(keyCode, event);
-	}
-
-	@Override
 	public void onDestroy()
 	{
 		buyingItem.set(null);
-		if (gridView != null)
+		if (binding.gridView != null)
 		{
-			gridView.setAdapter(null);
+			binding.gridView.setAdapter(null);
 		}
-		if (listView != null)
+		if (binding.listView != null)
 		{
-			listView.setAdapter(null);
+			binding.listView.setAdapter(null);
 		}
 		super.onDestroy();
 	}
@@ -231,116 +407,116 @@ public class BuyDrink extends MeteroidNetworkActivity implements AdapterView.OnI
 		{
 			Utility.displayToastMessage(this, message);
 		}
-		final TextView textView = (TextView) findViewById(R.id.buy_drink_error);
-		textView.setVisibility(View.VISIBLE);
-		gridView.setVisibility(View.GONE);
-		listView.setVisibility(View.GONE);
-		progressBar.setVisibility(View.GONE);
+		binding.buyDrinkError.setVisibility(View.VISIBLE);
+		binding.gridView.setVisibility(View.GONE);
+		binding.listView.setVisibility(View.GONE);
+		binding.progressBar.setVisibility(View.GONE);
 	}
 
 	@Override
-	public void processIOResult(final LongRunningIOTask task, final String json)
+	public void processIOResult(final LongRunningIOTask task, final Object result)
 	{
-		if (json != null)
+		switch (task)
 		{
-			switch (task)
+			// Parse user data
+			case GET_USER:
+			case UPDATE_USER:
 			{
-				// Parse user data
-				case GET_USER:
-				case UPDATE_USER:
+				user = (User)result;
+				binding.setUser(user);
+				((BuyDrink)activity).user = user;
+				if (task == LongRunningIOTask.GET_USER)
 				{
-					user = UserController.parseUserFromJSON(json);
-					if (task == LongRunningIOTask.GET_USER)
-					{
-						final TextView label = (TextView) findViewById(R.id.username);
-						final ImageView icon = (ImageView) findViewById(R.id.icon);
-						label.setText(user.getName());
-						Utility.loadGravatarImage(this, icon, user);
-					}
-					final TextView balance = (TextView) findViewById(R.id.balance);
-					balance.setText(DECIMAL_FORMAT.format(user.getBalance()));
-					isBuying.set(false);
-					setProgressBarIndeterminateVisibility(false);
-					break;
+					Utility.loadUserImage(this, binding.icon, user);
 				}
+				isBuying.set(false);
+				setProgressBarIndeterminateVisibility(false);
+				break;
+			}
+		
+			// Parse drinks
+			case GET_DRINKS:
+			{
+				final List<BuyableItem> buyableItemList = (List<BuyableItem>)result;
+				MoneyController.addMoney(buyableItemList);
 
-				// Parse drinks
-				case GET_DRINKS:
+				final BuyableItemAdapter buyableItemAdapter = new BuyableItemAdapter(buyableItemList);
+				if (config.useGridView)
 				{
-					final List<BuyableItem> buyableItemList = DrinkController.parseAllDrinksFromJSON(json, hostname);
-					MoneyController.addMoney(buyableItemList);
-					Collections.sort(buyableItemList, new BuyableComparator());
-
-					final BuyableItemAdapter buyableItemAdapter = new BuyableItemAdapter(buyableItemList);
-					if (useGridView)
-					{
-						gridView.setAdapter(buyableItemAdapter);
-						gridView.setOnItemClickListener(this);
-						gridView.setVisibility(View.VISIBLE);
-					}
-					else
-					{
-						listView.setAdapter(buyableItemAdapter);
-						listView.setOnItemClickListener(this);
-						listView.setVisibility(View.VISIBLE);
-					}
-					progressBar.setVisibility(View.GONE);
-					break;
+					binding.gridView.setAdapter(buyableItemAdapter);
+					binding.gridView.setOnItemClickListener(this);
+					binding.gridView.setVisibility(View.VISIBLE);
 				}
-
-				// Bought drink
-				case BUY_DRINK:
+				else
 				{
-					final BuyableItem buyableItem = buyingItem.get();
-					if (buyableItem != null)
+					binding.listView.setAdapter(buyableItemAdapter);
+					binding.listView.setOnItemClickListener(this);
+					binding.listView.setVisibility(View.VISIBLE);
+				}
+				binding.progressBar.setVisibility(View.GONE);
+				if(binding.fab != null)
+				{
+					(config.useGridView? binding.gridView : binding.listView)
+					.setOnTouchListener(new ShowHideOnScroll(binding.fab));
+				}
+				handleIntent(buyableItemList);
+				break;
+			}
+			
+			// Bought drink
+			case BUY_DRINK:
+			{
+				final BuyableItem buyableItem = buyingItem.get();
+				if (buyableItem != null)
+				{
+					buyingItem.set(null);
+					Utility.displayToastMessage(this,
+						String.format(
+									getResources().getString(R.string.buy_drink_bought_drink),
+									buyableItem.getName(),
+									DECIMAL_FORMAT.format(buyableItem.getPrice())
+							)
+					);
+					// Adjust the displayed balance to give an immediate user feedback
+					if (user != null)
 					{
-						buyingItem.set(null);
-						Utility.displayToastMessage(this,
+						user.setBalance(user.getBalance() - buyableItem.getPrice());
+					}
+					if (config.multiUserMode && user.getRedirect())
+					{
+						pickUsername();
+						break;
+					}
+					if(!buyableItem.getActive())
+					{
+						new LongRunningIORequest<List<Drink>>(this, LongRunningIOTask.GET_DRINKS, connection.getAPI().listDrinks());
+					}
+				}
+				new LongRunningIORequest<User>(this, LongRunningIOTask.UPDATE_USER, connection.getAPI().getUser(config.userID));
+				break;
+			}
+			
+			// Added money
+			case ADD_MONEY:
+			{
+				final BuyableItem buyableItem = buyingItem.get();
+				if (buyableItem != null)
+				{
+					buyingItem.set(null);
+					Utility.displayToastMessage(this,
 							String.format(
-										getResources().getString(R.string.buy_drink_bought_drink),
-										buyableItem.getName(),
-										DECIMAL_FORMAT.format(buyableItem.getDonationRecommendation())
-								)
-						);
-						// Adjust the displayed balance to give an immediate user feedback
-						if (user != null)
-						{
-							final TextView balance = (TextView) findViewById(R.id.balance);
-							balance.setText(DECIMAL_FORMAT.format(user.getBalance() - buyableItem.getDonationRecommendation()));
-						}
-						if (multiUserMode)
-						{
-							Utility.startActivity(this, PickUsername.class);
-							break;
-						}
-					}
-					new LongRunningIOGet(this, LongRunningIOTask.UPDATE_USER, hostname + "users/" + userID + ".json");
-					break;
-				}
-
-				// Added money
-				case ADD_MONEY:
-				{
-					final BuyableItem buyableItem = buyingItem.get();
-					if (buyableItem != null)
+									getResources().getString(R.string.buy_drink_added_money),
+									DECIMAL_FORMAT.format(-buyableItem.getPrice())
+							)
+					);
+					// Adjust the displayed balance to give an immediate user feedback
+					if (user != null)
 					{
-						buyingItem.set(null);
-						Utility.displayToastMessage(this,
-								String.format(
-										getResources().getString(R.string.buy_drink_added_money),
-										DECIMAL_FORMAT.format(-buyableItem.getDonationRecommendation())
-								)
-						);
-						// Adjust the displayed balance to give an immediate user feedback
-						if (user != null)
-						{
-							final TextView balance = (TextView) findViewById(R.id.balance);
-							balance.setText(DECIMAL_FORMAT.format(user.getBalance() - buyableItem.getDonationRecommendation()));
-						}
+						user.setBalance(user.getBalance() - buyableItem.getPrice());
 					}
-					new LongRunningIOGet(this, LongRunningIOTask.UPDATE_USER, hostname + "users/" + userID + ".json");
-					break;
 				}
+				new LongRunningIORequest<User>(this, LongRunningIOTask.UPDATE_USER, connection.getAPI().getUser(config.userID));
+				break;
 			}
 		}
 	}
@@ -355,24 +531,18 @@ public class BuyDrink extends MeteroidNetworkActivity implements AdapterView.OnI
 		}
 		if (isBuying.compareAndSet(false, true))
 		{
-			final BuyableItem buyableItem = (BuyableItem) (useGridView ? gridView.getItemAtPosition(index) : listView.getAdapter().getItem(index));
+			final BuyableItem buyableItem = (BuyableItem) (config.useGridView ? binding.gridView.getItemAtPosition(index) : binding.listView.getAdapter().getItem(index));
 			if (buyableItem != null)
 			{
-				buyingItem.set(buyableItem);
-				setProgressBarIndeterminateVisibility(true);
-				if(buyableItem.isDrink())
-				{
-					new LongRunningIOGet(this, LongRunningIOTask.BUY_DRINK, hostname + "users/" + userID + "/buy.json?drink=" + ((Drink)buyableItem).getId());
-				}
-				else
-				{
-					new LongRunningIOGet(this, LongRunningIOTask.ADD_MONEY, hostname + "users/" + userID + "/deposit.json?amount=" + (-buyableItem.getDonationRecommendation()));
-				}
+				buy(buyableItem);
+			} else {
+				isBuying.set(false);
+				System.err.println("Touched item was null, ignoring.");
 			}
 		}
 	}
 
-	private class BuyableItemAdapter extends ArrayAdapter<BuyableItem>
+	private class BuyableItemAdapter extends MeteroidAdapter<BuyableItem>
 	{
 		private final List<BuyableItem> drinkList;
 		private final LayoutInflater inflater;
@@ -381,7 +551,7 @@ public class BuyDrink extends MeteroidNetworkActivity implements AdapterView.OnI
 		{
 			super(activity, R.layout.activity_buy_drink, drinkList);
 			this.drinkList = drinkList;
-			this.inflater = (LayoutInflater) activity.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+			this.inflater = activity.getLayoutInflater();
 		}
 
 		public View getView(final int position, final View convertView, final ViewGroup parent)
@@ -389,7 +559,7 @@ public class BuyDrink extends MeteroidNetworkActivity implements AdapterView.OnI
 			View view = convertView;
 			if (view == null)
 			{
-				view = inflater.inflate(useGridView ? R.layout.activity_buy_drink_item_gridview : R.layout.activity_buy_drink_item, parent, false);
+				view = inflater.inflate(config.useGridView ? R.layout.activity_buy_drink_item_gridview : R.layout.activity_buy_drink_item, parent, false);
 			}
 			if (view == null)
 			{
@@ -399,10 +569,10 @@ public class BuyDrink extends MeteroidNetworkActivity implements AdapterView.OnI
 			final BuyableItem buyableItem = drinkList.get(position);
 
 			final ImageView icon = (ImageView) view.findViewById(R.id.icon);
-			Utility.loadBuyableItemImage(activity, icon, buyableItem);
+			Utility.loadBuyableItemImage(activity, icon, buyableItem, config.hostname);
 
 			final TextView label = (TextView) view.findViewById(R.id.label);
-			label.setText(createLabel(buyableItem, useGridView));
+			label.setText(createLabel(buyableItem, config.useGridView));
 
 			return view;
 		}
@@ -414,7 +584,7 @@ public class BuyDrink extends MeteroidNetworkActivity implements AdapterView.OnI
 			{
 				label.append("+");
 			}
-			label.append(DECIMAL_FORMAT.format(-buyableItem.getDonationRecommendation()));
+			label.append(DECIMAL_FORMAT.format(-buyableItem.getPrice()));
 			if (buyableItem.isDrink())
 			{
 				if (useGridView)
@@ -426,13 +596,19 @@ public class BuyDrink extends MeteroidNetworkActivity implements AdapterView.OnI
 			return label.toString();
 		}
 	}
-
-	private class BuyableComparator implements Comparator<BuyableItem>
+	
+	// the barcode scan result
+	public void onActivityResult(int requestCode, int resultCode, Intent intent)
 	{
-		@Override
-		public int compare(final BuyableItem buyableItem, final BuyableItem buyableItem2)
+		IntentResult scanResult = IntentIntegrator.parseActivityResult(requestCode, resultCode, intent);
+		if(scanResult != null)
 		{
-			return (int) Math.round(buyableItem2.getDonationRecommendation() * 100 - buyableItem.getDonationRecommendation() * 100);
+			if(scanResult.getContents() != null)
+			{
+				System.err.println("Scanned barcode: " + scanResult.toString());
+				new LongRunningIORequest<Void>(this, LongRunningIOTask.BUY_DRINK, connection.getAPI().buy_barcode(config.userID, scanResult.getContents()));
+			}
 		}
 	}
+
 }

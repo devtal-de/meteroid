@@ -25,30 +25,27 @@
 package de.chaosdorf.meteroid;
 
 import android.app.ActionBar;
-import android.app.Activity;
+import android.app.AlertDialog;
+import android.databinding.DataBindingUtil;
+import android.databinding.ObservableBoolean;
+import android.content.DialogInterface;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.Build;
-import android.preference.PreferenceManager;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.Window;
-import android.widget.ImageButton;
-import android.widget.TextView;
 
 import org.jetbrains.annotations.NotNull;
 
-import java.text.DecimalFormat;
 import java.text.ParseException;
 import java.util.Date;
 
-import de.chaosdorf.meteroid.controller.UserController;
-import de.chaosdorf.meteroid.longrunningio.LongRunningIOPost;
-import de.chaosdorf.meteroid.longrunningio.LongRunningIOPatch;
-import de.chaosdorf.meteroid.longrunningio.LongRunningIOGet;
+import de.chaosdorf.meteroid.databinding.ActivityUserSettingsBinding;
+import de.chaosdorf.meteroid.longrunningio.LongRunningIOCallback;
+import de.chaosdorf.meteroid.longrunningio.LongRunningIORequest;
 import de.chaosdorf.meteroid.longrunningio.LongRunningIOTask;
 import de.chaosdorf.meteroid.model.User;
 import de.chaosdorf.meteroid.util.Utility;
@@ -56,42 +53,38 @@ import de.chaosdorf.meteroid.MeteroidNetworkActivity;
 
 public class UserSettings extends MeteroidNetworkActivity
 {
-	private final DecimalFormat DECIMAL_FORMAT = new DecimalFormat("0.00");
-
-	private Activity activity = null;
-	private TextView usernameText;
-	private TextView emailText;
-	private TextView balanceText;
-	private SharedPreferences prefs;
-	private int userID;
-	private String hostname = null;
+	private User user;
+	private ActivityUserSettingsBinding binding;
+	private final ObservableBoolean writable = new ObservableBoolean(false);
 
 	@Override
 	protected void onCreate(final Bundle savedInstanceState)
 	{
 		super.onCreate(savedInstanceState);
-		activity = this;
 		requestWindowFeature(Window.FEATURE_INDETERMINATE_PROGRESS);
-		setContentView(R.layout.activity_user_settings);
+		binding = DataBindingUtil.setContentView(this, R.layout.activity_user_settings);
+		binding.setUser(user);
+		binding.setDECIMALFORMAT(DECIMAL_FORMAT);
+		binding.setWritable(writable);
 
-		usernameText = (TextView) findViewById(R.id.username);
-		emailText = (TextView) findViewById(R.id.email);
-		balanceText = (TextView) findViewById(R.id.balance);
-		prefs = PreferenceManager.getDefaultSharedPreferences(this);
-		userID = prefs.getInt("userid", 0);
-		hostname = prefs.getString("hostname", null);
-
-		final ImageButton backButton = (ImageButton) findViewById(R.id.button_back);
-		backButton.setOnClickListener(new View.OnClickListener()
+		binding.buttonBack.setOnClickListener(new View.OnClickListener()
 		{
 			public void onClick(View view)
 			{
-				goBack();
+				finish();
+			}
+		});
+		
+		binding.buttonDelete.setOnClickListener(new View.OnClickListener()
+		{
+			@Override
+			public void onClick(View view)
+			{
+				deleteUser();
 			}
 		});
 
-		final ImageButton saveButton = (ImageButton) findViewById(R.id.button_save);
-		saveButton.setOnClickListener(new View.OnClickListener()
+		binding.buttonSave.setOnClickListener(new View.OnClickListener()
 		{
 			@Override
 			public void onClick(View view)
@@ -100,23 +93,32 @@ public class UserSettings extends MeteroidNetworkActivity
 			}
 		});
 
-		if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB)
+		ActionBar actionBar = getActionBar();
+		if(actionBar != null)
 		{
-			ActionBar actionBar = getActionBar();
-			if(actionBar != null)
+			actionBar.setDisplayHomeAsUpEnabled(true);
+			binding.buttonBack.setVisibility(View.GONE);
+			binding.buttonDelete.setVisibility(View.GONE);
+			binding.buttonSave.setVisibility(View.GONE);
+		}
+		
+		makeReadOnly();
+		final UserSettings userSettings = this;
+		new LongRunningIORequest<User>(new LongRunningIOCallback<User>() {
+			@Override
+			public void displayErrorMessage(LongRunningIOTask task, String message)
 			{
-				actionBar.setDisplayHomeAsUpEnabled(true);
-				backButton.setVisibility(View.GONE);
-				saveButton.setVisibility(View.GONE);
+				userSettings.displayErrorMessage(task, message);
 			}
-		}
-
-		if(userID != 0) //existing user
-		{
-			makeReadOnly();
-			new LongRunningIOGet(this, LongRunningIOTask.GET_USER, hostname + "users/" + userID + ".json");
-		}
-
+			
+			@Override
+			public void processIOResult(LongRunningIOTask task, User user)
+			{
+				userSettings.user = user;
+				binding.setUser(user);
+				makeWritable();
+			}
+		}, LongRunningIOTask.GET_USER, (config.userID != config.NO_USER_ID)? connection.getAPI().getUser(config.userID): connection.getAPI().getUserDefaults());
 	}
 
 	@Override
@@ -125,10 +127,13 @@ public class UserSettings extends MeteroidNetworkActivity
 		switch (item.getItemId())
 		{
 			case android.R.id.home:
-				goBack();
+				finish();
 				break;
 			case R.id.action_save:
 				saveUser();
+				break;
+			case R.id.action_delete:
+				deleteUser();
 				break;
 		}
 		return super.onOptionsItemSelected(item);
@@ -138,6 +143,9 @@ public class UserSettings extends MeteroidNetworkActivity
 	public boolean onCreateOptionsMenu(final Menu menu)
 	{
 		getMenuInflater().inflate(R.menu.settings, menu);
+		boolean writable = this.writable.get();
+		menu.findItem(R.id.action_save).setEnabled(writable);
+		menu.findItem(R.id.action_delete).setEnabled(writable);
 		return true;
 	}
 
@@ -146,7 +154,7 @@ public class UserSettings extends MeteroidNetworkActivity
 	{
 		if (keyCode == KeyEvent.KEYCODE_BACK)
 		{
-			goBack();
+			finish();
 			return true;
 		}
 		return super.onKeyDown(keyCode, event);
@@ -154,29 +162,63 @@ public class UserSettings extends MeteroidNetworkActivity
 
 	private void makeReadOnly()
 	{
-		usernameText.setEnabled(false);
-		emailText.setEnabled(false);
-		balanceText.setEnabled(false);
+		writable.set(false);
+		invalidateOptionsMenu();
 		setProgressBarIndeterminateVisibility(true);
 	}
 
 	private void makeWritable()
 	{
 		setProgressBarIndeterminateVisibility(false);
-		usernameText.setEnabled(true);
-		emailText.setEnabled(true);
-		balanceText.setEnabled(true);
+		writable.set(true);
+		invalidateOptionsMenu();
 	}
 
-	private void goBack()
+	private void deleteUser()
 	{
-		if(userID == 0) //new user
+		if(config.userID == config.NO_USER_ID) //new user
 		{
-			Utility.startActivity(this, PickUsername.class);
+			new AlertDialog.Builder(this)
+				.setMessage(R.string.user_settings_cant_delete_non_existing_user)
+				.setPositiveButton(android.R.string.ok, null) // Do nothing on click.
+				.create().show();
 		}
 		else
 		{
-			Utility.startActivity(this, BuyDrink.class);
+			final UserSettings userSettings = this;
+			new AlertDialog.Builder(this)
+				.setMessage(R.string.user_settings_confirm_delete_user)
+				.setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener()
+				{
+					@Override
+					public void onClick(DialogInterface dialog, int id)
+					{
+						// really delete the user
+						makeReadOnly();
+						new LongRunningIORequest<Void>(new LongRunningIOCallback<Void>() {
+								@Override
+								public void displayErrorMessage(LongRunningIOTask task, String message)
+								{
+									userSettings.displayErrorMessage(task, message);
+								}
+								
+								@Override
+								public void processIOResult(LongRunningIOTask task, Void result)
+								{
+									config.userID = config.NO_USER_ID;
+									config.save();
+									makeWritable();
+									Utility.displayToastMessage(userSettings, getResources().getString(R.string.user_settings_deleted_user));
+									Utility.startActivity(userSettings, PickUsername.class, Intent.FLAG_ACTIVITY_CLEAR_TOP);
+									finish();
+								}
+							},
+							LongRunningIOTask.DELETE_USER,
+							connection.getAPI().deleteUser(config.userID));
+					}
+				})
+				.setNegativeButton(android.R.string.cancel, null) // Do nothing on click.
+				.create().show();
 		}
 	}
 
@@ -184,7 +226,7 @@ public class UserSettings extends MeteroidNetworkActivity
 	{
 		makeReadOnly();
 
-		final CharSequence username = usernameText.getText();
+		final CharSequence username = binding.username.getText();
 		if (username == null || username.length() == 0)
 		{
 			Utility.displayToastMessage(this, getResources().getString(R.string.user_settings_empty_username));
@@ -192,16 +234,9 @@ public class UserSettings extends MeteroidNetworkActivity
 			return;
 		}
 
-		final CharSequence email = emailText.getText();
-		String emailValue = "";
-		if (email != null && email.length() > 0)
-		{
-			emailValue = email.toString();
-		}
-
 		double balanceValue = 0;
-		final CharSequence balance = balanceText.getText();
-		if (balance != null && balance.length() > 0)
+		final CharSequence balance = binding.balance.getText();
+		if (balance != null)
 		{
 			try
 			{
@@ -214,66 +249,55 @@ public class UserSettings extends MeteroidNetworkActivity
 				return;
 			}
 		}
+		
+		user.setBalance(balanceValue);
 
-		final User user = new User(userID,
-				username.toString(),
-				emailValue,
-				balanceValue,
-				new Date(),
-				new Date()
-		);
-
-		final String hostname = prefs.getString("hostname", null);
-
-		if(userID == 0) //new user
+		final UserSettings userSettings = this;
+		if(config.userID == config.NO_USER_ID) //new user
 		{
-			new LongRunningIOPost(
-				this,
+			new LongRunningIORequest<User>(new LongRunningIOCallback<User>() {
+					@Override
+					public void displayErrorMessage(LongRunningIOTask task, String message)
+					{
+						userSettings.displayErrorMessage(task, message);
+					}
+					
+					@Override
+					public void processIOResult(LongRunningIOTask task, User result)
+					{
+						Utility.startActivity(userSettings, PickUsername.class, Intent.FLAG_ACTIVITY_CLEAR_TOP);
+						finish();
+					}
+				},
 				LongRunningIOTask.ADD_USER,
-				hostname + "users.json",
-				UserController.userToJSONPostParams(user)
+				connection.getAPI().createUser(user)
 			);
 		}
 		else
 		{
-			new LongRunningIOPatch(
-				this,
+			new LongRunningIORequest<Void>(new LongRunningIOCallback<Void>() {
+					@Override
+					public void displayErrorMessage(LongRunningIOTask task, String message)
+					{
+						userSettings.displayErrorMessage(task, message);
+					}
+					
+					@Override
+					public void processIOResult(LongRunningIOTask task, Void result)
+					{
+						Utility.startActivity(userSettings, BuyDrink.class, Intent.FLAG_ACTIVITY_CLEAR_TOP);
+						finish();
+					}
+				},
 				LongRunningIOTask.EDIT_USER,
-				hostname + "users/" + user.getId() + ".json",
-				UserController.userToJSONPostParams(user)
+				connection.getAPI().editUser(user.getId(), user)
 			);
 		}
 	}
 
-	@Override
 	public void displayErrorMessage(final LongRunningIOTask task, final String message)
 	{
 		makeWritable();
 		Utility.displayToastMessage(this, message);
-	}
-
-	@Override
-	public void processIOResult(final LongRunningIOTask task, final String json)
-	{
-		final UserSettings usersettings = this;
-		if (json != null)
-		{
-			switch(task)
-			{
-				case ADD_USER:
-					Utility.startActivity(usersettings, PickUsername.class);
-					break;
-				case EDIT_USER:
-					Utility.startActivity(usersettings, BuyDrink.class);
-					break;
-				case GET_USER:
-					User user = UserController.parseUserFromJSON(json);
-					usernameText.setText(user.getName());
-					emailText.setText(user.getEmail());
-					balanceText.setText(DECIMAL_FORMAT.format(user.getBalance()));
-					makeWritable();
-					break;
-			}
-		}
 	}
 }

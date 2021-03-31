@@ -39,14 +39,4 @@ public class MenuUtility
 		}
 	}
 
-	public static boolean onClickMultiUserMode(final Activity activity, final MenuItem item)
-	{
-		final boolean multiUserMode = Utility.toggleMultiUserMode(activity);
-		item.setChecked(multiUserMode);
-		if (multiUserMode)
-		{
-			Utility.resetUsername(activity);
-		}
-		return multiUserMode;
-	}
 }

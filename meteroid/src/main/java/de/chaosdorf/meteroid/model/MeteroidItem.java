@@ -22,28 +22,9 @@
  * THE SOFTWARE.
  ******************************************************************************/
 
-package de.chaosdorf.meteroid.longrunningio;
+package de.chaosdorf.meteroid.model;
 
-import java.io.IOException;
-
-import okhttp3.MediaType;
-import okhttp3.OkHttpClient;
-import okhttp3.RequestBody;
-import okhttp3.Request;
-import okhttp3.Callback;
-import okhttp3.Call;
-import okhttp3.Response;
-
-import de.chaosdorf.meteroid.MeteroidNetworkActivity;
-
-public class LongRunningIOPost extends LongRunningIOBase
-{
-	public static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
-	public LongRunningIOPost(final MeteroidNetworkActivity callback, final LongRunningIOTask id, final String url, final String postData)
-	{
-		super();
-		RequestBody reqbody = RequestBody.create(JSON, postData);
-		Request req = new Request.Builder().url(url).post(reqbody).build();
-		client.newCall(req).enqueue(newCallback(callback, id));
-	}
+public interface MeteroidItem {
+	public String getName();
+	public boolean getActive();
 }
